@@ -1,13 +1,19 @@
-# ESBL-producing E. coli Dynamic ABM in Tanzanian NICUs (version 1.2)
+# ESBL-producing E. coli Dynamic ABM in Tanzanian NICUs (version 1.3)
 #Luyuan Zhao 
-#2025-05-20 
+#2025-05-21 
 
+
+#--------------------------------
 #1. Loading necessary packages
 using Random               # random number generation
 using StatsBase            # sample without replacement
 using Plots;
+using Statistics
+using Measures
 gr();                      # plotting backend
 
+
+#--------------------------------
 #2. State & agent enumerations
 @enum BabyState S C_S C_R I_S I_R REC
 # To track the infection or AMR status of each neonate
@@ -20,6 +26,8 @@ gr();                      # plotting backend
 @enum AgentType BABY HCW DEVICE
 # Let one common struct represent babies, HCWs and devices while still knowing “what kind of thing am I?”
 
+
+#--------------------------------
 #3. Agent & Environment settings
 # Agent - Stores identification, type, health status, contamination status and timestamps for epidemiological events.
 mutable struct Agent
@@ -72,6 +80,8 @@ mutable struct Environment
     p_empiric_abx::Float64 # probability of empiric therapy
 end
 
+
+#--------------------------------
 #4.  Initialization
 # Initial Status (default values)
 # There are 10 babies, 3 HCWs and 5 devices in the environment.
@@ -132,9 +142,13 @@ function init_env(; N_babies=10, N_hcws=3, N_devices=5,
         p_empiric_abx)
 end
 
+
+#--------------------------------
 # 5. Helper: sample without replacement
 sample_norpl(rng, v::Vector, n::Int) = StatsBase.sample(rng, v, min(n, length(v)), replace=false)
 
+
+#--------------------------------
 # 6. Record stats
 # To record the number of agents in each state and add it to the stats dictionary.
 function record_stats!(env::Environment)
@@ -148,7 +162,9 @@ function record_stats!(env::Environment)
     end
 end
 
-#7. Daily dynamics
+
+#--------------------------------
+# 7. Daily dynamics
 #The function daily_step!() simulates the daily dynamics of the environment.
 function daily_step!(env::Environment, rng::AbstractRNG)
 
@@ -259,6 +275,8 @@ function daily_step!(env::Environment, rng::AbstractRNG)
     env.tick += 1
 end
 
+
+#--------------------------------
 # 8.Simulation loop
 # Simulation controller
 # Runs the full simulation for a given number of days (90 days here by default)
@@ -271,6 +289,8 @@ function run!(env::Environment; days=90, rng=Random.GLOBAL_RNG)
     end
 end
 
+
+#--------------------------------
 # 9. Results and visualisztions
 function main()
     println("Starting E. coli ABM (with initial contamination)...")
@@ -336,3 +356,75 @@ end
 
 main()
 
+
+#--------------------------------
+# 10. Run multiple simulations
+# Simulate multiple runs of the model and plot the results
+function run_multiple!(N_runs::Int=100, days::Int=90)                                      # Define a function to run multiple simulations : times & days
+    println("Running $N_runs simulations...")                                              # Annotate a bit
+
+    all_stats = Dict(s => zeros(Float64, days + 1, N_runs) for s in instances(BabyState))  # Create a dictionary to store the stats of each state
+    all_infections = zeros(Float64, days + 1, N_runs)                                      # Create a matrix to store the number of infections (I_S + I_R) 
+    # for each run
+
+    # Run the simulation N_runs times
+    for run in 1:N_runs
+        env = init_env()
+        run!(env, days=days)
+        for (i, s) in enumerate(instances(BabyState))
+            all_stats[s][:, run] = env.stats[s]
+        end
+        all_infections[:, run] = [env.stats[I_S][t] + env.stats[I_R][t] for t in 1:(days+1)]
+    end
+
+    # Create a plot for each state
+    # and add the mean and standard deviation
+    println("Plotting state trajectories with ± SD...")
+
+    # Beautify a bit:)
+    state_styles = Dict(
+        S => (:gray30, :solid),
+        C_S => (:goldenrod, :dot),
+        C_R => (:firebrick, :dash),
+        I_S => (:steelblue, :solid),
+        I_R => (:indigo, :dashdot),
+        REC => (:forestgreen, :solid)
+    )
+
+    day_range = 0:days
+    ymax = ceil(Int, maximum(all_stats[REC])) + 1
+
+    plt1 = plot(title="State-wise Average Dynamics ± SD (Times run=$N_runs)",
+        xlabel="Days", ylabel="Number of Neonates", legend=:right, dpi=300,
+        size=(1000, 550), grid=:y, left_margin=10mm, bottom_margin=8mm, top_margin=6mm,
+        guidefont=font(12), xtickfont=font(10), ytickfont=font(10))
+
+    # Use mean and standard deviation to plot the average dynamics of each state
+    # Add the ribbon to show the fluctuations
+    for s in instances(BabyState)
+        μ_run = mean(all_stats[s], dims=2)[:]
+        σ_run = std(all_stats[s], dims=2)[:]
+        color, style = state_styles[s]
+        plot!(plt1, day_range, μ_run, ribbon=σ_run, label=string(s), color=color, linestyle=style, linewidth=2)
+    end
+
+    display(plt1)
+
+    # Visualize the total infections (I_S + I_R) over time
+    # and add the mean and standard deviation
+    println("Plotting total infection trends ± SD...")
+
+    μ_inf = mean(all_infections, dims=2)[:]
+    σ_inf = std(all_infections, dims=2)[:]
+
+    plt2 = plot(day_range, μ_inf, ribbon=σ_inf, color=:darkred, lw=2,
+        title="Total Number of Infections (sensitive & resistant) ± SD (Times run=$N_runs)",
+        xlabel="Days", ylabel="Number of Neonates",
+        legend=false, dpi=300, size=(900, 400), grid=:y, left_margin=10mm, bottom_margin=8mm, top_margin=6mm,
+        guidefont=font(12), xtickfont=font(10), ytickfont=font(10))
+
+    display(plt2)
+
+end
+
+run_multiple!(100)
