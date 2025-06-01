@@ -352,9 +352,9 @@ end
 
 #---------------------------------------------------------------------------------------------------------------------
 # 8.Simulation loop
-# Runs the full simulation for a given number of days (90 days here by default)
+# Runs the full simulation for a given number of days (142 days here by default)
 # and record the number of babies in each state (S, C_S, C_R, I_S, I_R, REC)
-function run!(env::Environment; days=90, rng=Random.GLOBAL_RNG)
+function run!(env::Environment; days=142, rng=Random.GLOBAL_RNG)
     record_stats!(env)
     for _ in 1:days
         daily_step!(env, rng)
@@ -370,7 +370,7 @@ function main()
 
     env = init_env()
 
-    days_total = 90
+    days_total = 142
     recoveries_cum = Int[]
     push!(recoveries_cum, 0)
 
@@ -456,7 +456,7 @@ main()
 #---------------------------------------------------------------------------------------------------------------------
 # 10. Run multiple simulations
 # Simulate multiple runs of the model and plot the results
-function run_multiple!(N_runs::Int=100, days::Int=90)                                      # Define a function to run multiple simulations : times & days
+function run_multiple!(N_runs::Int=100, days::Int=142)                                      # Define a function to run multiple simulations : times & days
     
     # to obtain the mean and standard deviation of the results
     peak_inf_list = Float64[]
