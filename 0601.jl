@@ -40,7 +40,7 @@ mutable struct Agent
     abx_left::Int          # antibiotic days remaining
 end
 
-# 3.2 Environment - Stores all agents and parameters of the simulation.(Mutable)
+# 3.2 Environment (Mutable)- Stores all agents and parameters of the simulation.
 mutable struct Environment
     babies::Vector{Agent}
     hcws::Vector{Agent}
@@ -125,7 +125,7 @@ function init_env(; N_babies=10, N_total=165, N_hcws=3, N_devices=5,
         push!(babies, baby)
     end
 
-    # Create HCWs to
+    # Create HCWs 
     hcws = Agent[]
     for i in 1:N_hcws
         hcw = Agent(i, HCW, S, CLEAN, :S, 0, 0)         # id, type, state, contamination status, variant, tick, abx_left 
@@ -585,4 +585,3 @@ function run_multiple!(N_runs::Int=100, days::Int=142)                          
 end
 
 run_multiple!(100)
-
