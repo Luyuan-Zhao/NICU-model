@@ -1,7 +1,8 @@
-# ESBL-producing Enterobacterales Dynamic ABM in Tanzanian NICUs (version 1.7)
+# ESBL-producing Enterobacterales Dynamic ABM in Tanzanian NICUs (version 1.9)
 # Luyuan Zhao 
 # 2025-06-13 
 # In this version, we added the expected outputs in the baseline model.
+# Additionally, we added the transmission-induced resistance (S → C_R) to the model and rules of responsible HCWs.
 
 
 #---------------------------------------------------------------------------------------------------------------------
@@ -15,17 +16,17 @@ gr();                      # plotting backend
 
 
 #---------------------------------------------------------------------------------------------------------------------
-  # 2. State & agent enumerations
+# 2. State & agent enumerations
 @enum BabyState S C_S C_R I_S I_R REC
-  # To track the infection or AMR status of each neonate: 
-  #  S = Susceptible, C_S = Colonized Susceptible, C_R = Colonized Resistant, 
-  #  I_S = Infected Susceptible, I_R = Infected Resistant, REC = Recovered
+# To track the infection or AMR status of each neonate: 
+#  S = Susceptible, C_S = Colonized Susceptible, C_R = Colonized Resistant, 
+#  I_S = Infected Susceptible, I_R = Infected Resistant, REC = Recovered
 
 @enum CarrierState CLEAN CONTAM
-  # Describe whether a health-care worker (HCW) or device is contaminated
+# Describe whether a health-care worker (HCW) or device is contaminated
 
 @enum AgentType BABY HCW DEVICE
-  # Let one common struct represent babies, HCWs and devices while still knowing “what kind of thing am I?”
+# Let one common struct represent babies, HCWs and devices while still knowing “what kind of thing am I?”
 
 
 #---------------------------------------------------------------------------------------------------------------------
@@ -39,6 +40,7 @@ mutable struct Agent
     variant::Symbol        # :S or :R
     tick::Int              # days since entering current state
     abx_left::Int          # antibiotic days remaining
+    assigned_babies::Vector{Int}  # added for HCWs to track which babies they are assigned to
 end
 
 # 3.2 Environment (Mutable)- Stores all agents and parameters of the simulation.
@@ -77,6 +79,9 @@ mutable struct Environment
     selection_events::Int                 # Number of selection events
     total_recoveries::Int                 # Total number of recoveries
 
+    #--------------------
+    transmission_R_events::Int      # Number of transmission-induced resistance acquisitions
+
     p_empiric_abx::Float64                # probability of offering empiric therapy to babies
 
     p_exit::Float64               # Probability of leaving the NICU (discharge or death) per day
@@ -103,10 +108,10 @@ function init_env(; N_babies=10, N_total=165, N_hcws=3, N_devices=5,
     p_init_I_S=0.02, p_init_I_R=0.006,
     _=Random.GLOBAL_RNG)
 
- # Build up pools for babies
- all_ids = collect(1:N_total)
- init_ids = all_ids[1:N_babies]           # the first 10 babies are initialised with specific states
- baby_pool = all_ids[(N_babies+1):end]    # the rest of the IDs are available for new babies
+    # Build up pools for babies
+    all_ids = collect(1:N_total)
+    init_ids = all_ids[1:N_babies]           # the first 10 babies are initialised with specific states
+    baby_pool = all_ids[(N_babies+1):end]    # the rest of the IDs are available for new babies
 
     #  We introduce 3 initial cases: 1 I_R, 1 I_S and 1 C_S.
     # Create babies 
@@ -122,21 +127,31 @@ function init_env(; N_babies=10, N_total=165, N_hcws=3, N_devices=5,
             else
                 S, 0
             end
-        baby = Agent(i, BABY, bstate, CLEAN, :S, 0, abx_left)  # id, type, state, contamination status, variant, tick, abx_left
+        baby = Agent(i, BABY, bstate, CLEAN, :S, 0, abx_left, [])  # id, type, state, contamination status, variant, tick, abx_left
         push!(babies, baby)
     end
 
-    # Create HCWs 
+    # Create HCWs (Newly added HCWs are assigned to babies)
     hcws = Agent[]
-    for i in 1:N_hcws
-        hcw = Agent(i, HCW, S, CLEAN, :S, 0, 0)         # id, type, state, contamination status, variant, tick, abx_left 
-        push!(hcws, hcw)
+    baby_ids = [b.id for b in babies] # Collect the IDs of the babies to assign them to HCWs
+    N_hcws = 3                        # Total number of HCWs in the environment (matched with the number of HCWs in the NICU in init_env)
+    # Partition baby IDs into N_hcws groups, approximately evenly distributed
+    baby_groups = Iterators.partition(baby_ids, ceil(Int, length(baby_ids) / N_hcws))
+
+    # Reset HCW list
+    hcws = Agent[]
+    # For each group, create a corresponding HCW agent
+    for (i, group) in enumerate(baby_groups)
+        # Parameters: id, type, dummy state (S), clean status, variant, tick, abx_left, assigned baby IDs
+        hcw = Agent(i, HCW, S, CLEAN, :S, 0, 0, collect(group))
+        push!(hcws, hcw)                               # Add the new HCW to the list
     end
+
 
     # Create devices
     devices = Agent[]
     for i in 1:N_devices
-        device = Agent(i, DEVICE, S, CLEAN, :S, 0, 0)   # id, type, state, contamination status, variant, tick, abx_left
+        device = Agent(i, DEVICE, S, CLEAN, :S, 0, 0, [])   # id, type, state, contamination status, variant, tick, abx_left
         push!(devices, device)
     end
 
@@ -149,12 +164,12 @@ function init_env(; N_babies=10, N_total=165, N_hcws=3, N_devices=5,
         p_progress, p_recovery_S, p_recovery_R,
         abx_course, p_selection,
         p_decontam_hcw, p_decontam_dev,
-        0, stats, 0, 0, 0,
-        p_empiric_abx, p_exit::Float64,              
-        p_init_C_S::Float64,          
-        p_init_C_R::Float64,          
-        p_init_I_S::Float64,          
-        p_init_I_R::Float64, 
+        0, stats, 0, 0, 0, 0, #-----------------------
+        p_empiric_abx, p_exit::Float64,
+        p_init_C_S::Float64,
+        p_init_C_R::Float64,
+        p_init_I_S::Float64,
+        p_init_I_R::Float64,
         baby_pool)
 end
 
@@ -186,7 +201,9 @@ function daily_step!(env::Environment, rng::AbstractRNG)
 
     # HCW <=> Baby contacts
     for h in env.hcws
-        for b in sample_norpl(rng, env.babies, env.contacts_hb)
+        assigned = [b for b in env.babies if b.id in h.assigned_babies]
+        for b in sample_norpl(rng, assigned, env.contacts_hb)
+
 
             # HCW -> Baby: A contaminated HCW touches a susceptible baby
             # with transmission probability β_hb, baby becomes C_S or C_R
@@ -195,6 +212,7 @@ function daily_step!(env::Environment, rng::AbstractRNG)
                     b.bstate = C_S
                 elseif h.variant == :R
                     b.bstate = C_R
+                    env.transmission_R_events += 1  # Calculate the number of transmission-induced resistance
                 end
                 b.variant = h.variant
                 b.tick = 0
@@ -219,6 +237,7 @@ function daily_step!(env::Environment, rng::AbstractRNG)
                     b.bstate = C_S
                 elseif d.variant == :R
                     b.bstate = C_R
+                    env.transmission_R_events += 1  # Calculate the number of transmission-induced resistance
                 end
                 b.variant = d.variant
                 b.tick = 0
@@ -342,7 +361,7 @@ function daily_step!(env::Environment, rng::AbstractRNG)
             bstate, variant, abx = S, :S, 0
         end
 
-        new_baby = Agent(new_id, BABY, bstate, CLEAN, variant, 0, abx)
+        new_baby = Agent(new_id, BABY, bstate, CLEAN, variant, 0, abx, [])
         push!(env.babies, new_baby)
     end
 
@@ -443,10 +462,13 @@ function main()
     println("C_S → C_R selection events:  ", env.selection_events)
     println("Total recoveries (accumulated): ", env.total_recoveries)
 
+    #Show the counts for transmission-induced resistance (S → C_R)
+    println("Transmission-induced resistance (S → C_R): ", env.transmission_R_events)
+
     # Average ABX days per baby (based on total simulated population = 165)
-   avg_abx_days_per_baby = round(env.total_abx_days / 165, digits=2)
-   println("Avg total ABX treatment days per baby: ", avg_abx_days_per_baby)
-    
+    avg_abx_days_per_baby = round(env.total_abx_days / 165, digits=2)
+    println("Avg total ABX treatment days per baby: ", avg_abx_days_per_baby)
+
     # Count cumulative resistant infections (I_R)
     total_I_R = sum(env.stats[I_R])
     println("Cumulative resistant infections (I_R): ", total_I_R)
@@ -462,12 +484,13 @@ main()
 # 10. Run multiple simulations
 # Simulate multiple runs of the model and plot the results
 function run_multiple!(N_runs::Int=100, days::Int=142)                                      # Define a function to run multiple simulations : times & days
-    
+
     # to obtain the mean and standard deviation of the results
     peak_inf_list = Float64[]
     abx_days_list = Float64[]
     selection_list = Float64[]
     abx_days_per_baby_list = Float64[]
+    transmission_R_list = Float64[]                   # For transmission-induced resistance (S → C_R)
 
     println("Running $N_runs simulations...")                                              # Annotate a bit
 
@@ -501,7 +524,7 @@ function run_multiple!(N_runs::Int=100, days::Int=142)                          
         push!(abx_days_list, env.total_abx_days)
         push!(selection_list, env.selection_events)
         push!(abx_days_per_baby_list, round(env.total_abx_days / length(env.babies), digits=2))
-
+        push!(transmission_R_list, env.transmission_R_events)#-------------------------
     end
 
     # Create a plot for each state and add the mean & SD
@@ -590,7 +613,7 @@ function run_multiple!(N_runs::Int=100, days::Int=142)                          
     println("Avg total ABX treatment days per baby (mean ± SD): $abx_per_baby_mean ± $abx_per_baby_sd")
 
     # 5. Cumulative recoveries (at final day)
-    final_recoveries = all_recoveries[end, :]  
+    final_recoveries = all_recoveries[end, :]
     rec_mean = round(mean(final_recoveries), digits=2)
     rec_sd = round(std(final_recoveries), digits=2)
     println("Cumulative recoveries at day $days (mean ± SD): $rec_mean ± $rec_sd")
@@ -601,6 +624,10 @@ function run_multiple!(N_runs::Int=100, days::Int=142)                          
     resistant_inf_sd = round(std(resistant_inf_per_run), digits=2)
     println("Cumulative resistant infections (I_R) (mean ± SD): $resistant_inf_mean ± $resistant_inf_sd")
 
+    # 7. Transmission-induced resistance (S → C_R) across all runs
+    trans_R_mean = round(mean(transmission_R_list), digits=2)
+    trans_R_sd = round(std(transmission_R_list), digits=2)
+    println("Transmission-induced resistance (S → C_R) (mean ± SD): $trans_R_mean ± $trans_R_sd")
 
 end
 
