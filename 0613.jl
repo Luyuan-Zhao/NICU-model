@@ -521,7 +521,7 @@ function run_multiple!(N_runs::Int=100, days::Int=142)                          
     _ = ceil(Int, maximum(all_stats[REC])) + 1
 
     plt1 = plot(title="State-wise Average Dynamics ± SD (Times run=$N_runs)",
-        xlabel="Days", ylabel="Number of Neonates", legend=:right, dpi=300,
+        xlabel="Days", ylabel="Number of Neonates", legend=:outerright, right_margin=10mm, dpi=300,
         size=(800, 400), grid=:y, left_margin=10mm, bottom_margin=8mm, top_margin=6mm,
         guidefont=font(12), xtickfont=font(10), ytickfont=font(10))
 
