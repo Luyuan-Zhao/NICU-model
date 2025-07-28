@@ -1,7 +1,7 @@
 # Optimising Intervention Strategies for ESBL-Enterobacterales in a NICU: An Agent-Based Model
 
 
-This repository contains the source code for the agent-based model (ABM) developed for the dissertation titled: **"Optimising Intervention Strategies for Extended-Spectrum Beta-Lactamase-Producing *Enterobacterales* in a Tanzanian Neonatal Intensive Care Unit: An Agent-Based Modelling Approach"**[cite: 3, 8].
+This repository contains the source code for the agent-based model (ABM) developed for the dissertation titled: **"Optimising Intervention Strategies for Extended-Spectrum Beta-Lactamase-Producing *Enterobacterales* in a Tanzanian Neonatal Intensive Care Unit: An Agent-Based Modelling Approach"**.
 
 Author: **Luyuan Zhao** 
 Supervisor: **Professor Louise Matthews** 
