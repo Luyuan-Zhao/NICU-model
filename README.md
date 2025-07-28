@@ -89,6 +89,6 @@ All simulation and analysis scripts are available in this repository to ensure f
 2.  **Analyse the Results**:
     * The simulation scripts will generate output files (e.g., CSVs) in the `/results` (or relevant) folder.
     * Execute the R scripts to process these output files, generate summary statistics, and create the plots (like Figures 3, 4, and 5) from the paper.
-    * *(You may want to add a specific command here, e.g., `Rscript analyze_results.R`)*
+    * *(All stats used in R are consistent with its names, which means you can directly run the codes)*
 
 
