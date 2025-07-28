@@ -1,0 +1,21 @@
+Parameter Name,Outcome Metric,Spearman's rho(¦Ñ),p-value
+abx_course,Cumulative resistant infections,0.0763 ,0.0000 
+,Peak infections,0.0198 ,0.0001 
+,Selection events,0.0556 ,0.0000 
+,Transmission-induced resistance,0.0702 ,0.0000 
+p_clean_env,Cumulative resistant infections,0.0797 ,0.0000 
+,Peak infections,0.0003 ,0.9447 
+,Selection events,-0.1407 ,0.0000 
+,Transmission-induced resistance,0.0907 ,0.0000 
+p_decontam_dev,Cumulative resistant infections,-0.0509 ,0.0000 
+,Peak infections,-0.2001 ,0.0000 
+,Selection events,-0.3189 ,0.0000 
+,Transmission-induced resistance,-0.0134 ,0.0072 
+p_decontam_hcw,Cumulative resistant infections,0.0053 ,0.2320 
+,Peak infections,-0.0056 ,0.2086 
+,Selection events,-0.0122 ,0.0065 
+,Transmission-induced resistance,0.0074 ,0.0962 
+p_empiric_abx,Cumulative resistant infections,0.3957 ,0.0000 
+,Peak infections,0.1011 ,0.0000 
+,Selection events,0.5160 ,0.0000 
+,Transmission-induced resistance,0.3746 ,0.0000 
